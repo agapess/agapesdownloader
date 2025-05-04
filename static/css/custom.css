@@ -1,0 +1,59 @@
+/* Custom styles for the video downloader */
+
+/* Platform icon colors */
+.platform-icon-youtube {
+    color: #FF0000;
+}
+
+.platform-icon-instagram {
+    color: #E1306C;
+}
+
+.platform-icon-twitter {
+    color: #1DA1F2;
+}
+
+/* Adjust spacing for better readability */
+.card {
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.form-control:focus {
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Smooth transitions */
+.alert {
+    transition: opacity 0.3s ease-in-out;
+}
+
+#download-progress {
+    transition: all 0.3s ease-in-out;
+}
+
+/* Make the download button stand out */
+#download-btn {
+    transition: all 0.2s ease-in-out;
+}
+
+#download-btn:hover {
+    transform: translateY(-2px);
+}
+
+/* Custom valid/invalid feedback styles */
+.url-valid {
+    color: var(--bs-success);
+}
+
+.url-invalid {
+    color: var(--bs-danger);
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+    .card-header h2, 
+    .card-header h3 {
+        font-size: 1rem;
+    }
+}

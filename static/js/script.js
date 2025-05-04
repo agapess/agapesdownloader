@@ -1,0 +1,152 @@
+document.addEventListener('DOMContentLoaded', function() {
+    const urlInput = document.getElementById('url');
+    const urlFeedback = document.getElementById('url-feedback');
+    const platformIcon = document.getElementById('platform-icon');
+    const downloadForm = document.getElementById('download-form');
+    const downloadBtn = document.getElementById('download-btn');
+    const downloadProgress = document.getElementById('download-progress');
+
+    // Update the platform icon and feedback based on URL input
+    urlInput.addEventListener('input', debounce(function() {
+        const url = urlInput.value.trim();
+        
+        if (!url) {
+            resetUrlFeedback();
+            return;
+        }
+        
+        // Basic URL validation
+        if (!isValidUrl(url)) {
+            setInvalidFeedback('Invalid URL format');
+            return;
+        }
+        
+        // Check which platform the URL belongs to
+        checkPlatform(url);
+    }, 500));
+    
+    // Show progress indicator when form is submitted
+    downloadForm.addEventListener('submit', function(e) {
+        const url = urlInput.value.trim();
+        
+        if (!url) {
+            e.preventDefault();
+            setInvalidFeedback('Please enter a video URL');
+            return;
+        }
+        
+        if (!isValidUrl(url)) {
+            e.preventDefault();
+            setInvalidFeedback('Invalid URL format');
+            return;
+        }
+        
+        // Show download progress indicator
+        downloadProgress.style.display = 'block';
+        downloadBtn.disabled = true;
+    });
+    
+    // Helper function to validate URL format
+    function isValidUrl(url) {
+        try {
+            new URL(url);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+    
+    // Function to check which platform the URL belongs to via AJAX
+    function checkPlatform(url) {
+        fetch('/ajax/platform-check', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ url: url })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.valid) {
+                if (data.platform) {
+                    setValidFeedback(`Valid ${data.platform.charAt(0).toUpperCase() + data.platform.slice(1)} URL`);
+                    updatePlatformIcon(data.platform);
+                } else {
+                    setInvalidFeedback('Unsupported platform. Please use YouTube, Instagram, or Twitter/X');
+                    resetPlatformIcon();
+                }
+            } else {
+                setInvalidFeedback('Invalid URL format');
+                resetPlatformIcon();
+            }
+        })
+        .catch(error => {
+            console.error('Error checking platform:', error);
+            setInvalidFeedback('Error checking URL. Please try again.');
+            resetPlatformIcon();
+        });
+    }
+    
+    // Update the platform icon based on the detected platform
+    function updatePlatformIcon(platform) {
+        platformIcon.innerHTML = '';
+        
+        let icon;
+        switch (platform) {
+            case 'youtube':
+                icon = document.createElement('i');
+                icon.className = 'fab fa-youtube platform-icon-youtube';
+                break;
+            case 'instagram':
+                icon = document.createElement('i');
+                icon.className = 'fab fa-instagram platform-icon-instagram';
+                break;
+            case 'twitter':
+                icon = document.createElement('i');
+                icon.className = 'fab fa-twitter platform-icon-twitter';
+                break;
+            default:
+                icon = document.createElement('i');
+                icon.className = 'fas fa-link';
+        }
+        
+        platformIcon.appendChild(icon);
+    }
+    
+    // Reset the platform icon to default
+    function resetPlatformIcon() {
+        platformIcon.innerHTML = '<i class="fas fa-link"></i>';
+    }
+    
+    // Set valid feedback message
+    function setValidFeedback(message) {
+        urlFeedback.textContent = message;
+        urlFeedback.className = 'form-text url-valid';
+    }
+    
+    // Set invalid feedback message
+    function setInvalidFeedback(message) {
+        urlFeedback.textContent = message;
+        urlFeedback.className = 'form-text url-invalid';
+    }
+    
+    // Reset feedback to default state
+    function resetUrlFeedback() {
+        urlFeedback.textContent = 'Enter a valid video URL from YouTube, Instagram, or Twitter/X';
+        urlFeedback.className = 'form-text';
+        resetPlatformIcon();
+    }
+    
+    // Debounce function to limit how often the input handler fires
+    function debounce(func, wait) {
+        let timeout;
+        return function() {
+            const context = this;
+            const args = arguments;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                func.apply(context, args);
+            }, wait);
+        };
+    }
+});
