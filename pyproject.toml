@@ -10,6 +10,7 @@ dependencies = [
     "gunicorn>=23.0.0",
     "instaloader>=4.14.1",
     "psycopg2-binary>=2.9.10",
+    "python-telegram-bot>=22.0",
     "pytube>=15.0.0",
     "trafilatura>=2.0.0",
     "youtube-dl>=2021.12.17",

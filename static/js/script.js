@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Check Telegram bot status
+    checkTelegramStatus();
+    
+    // Set up refresh interval for Telegram status
+    setInterval(checkTelegramStatus, 10000); // Check every 10 seconds
     const urlInput = document.getElementById('url');
     const urlFeedback = document.getElementById('url-feedback');
     const platformIcon = document.getElementById('platform-icon');
@@ -207,5 +212,49 @@ document.addEventListener('DOMContentLoaded', function() {
                 func.apply(context, args);
             }, wait);
         };
+    }
+    
+    // Function to check Telegram bot status
+    function checkTelegramStatus() {
+        fetch('/telegram/status')
+            .then(response => response.json())
+            .then(data => {
+                const statusIndicator = document.getElementById('telegram-status-indicator');
+                const tokenStatus = document.getElementById('telegram-token-status');
+                const startBtn = document.getElementById('telegram-start-btn');
+                const stopBtn = document.getElementById('telegram-stop-btn');
+                const botInstructions = document.getElementById('bot-instructions');
+                
+                // Update token status
+                if (data.token_set) {
+                    tokenStatus.textContent = 'Telegram bot token is configured.';
+                    startBtn.disabled = false;
+                } else {
+                    tokenStatus.textContent = 'Telegram bot token is not set. Please configure it to use the bot.';
+                    startBtn.disabled = true;
+                    statusIndicator.className = 'badge bg-secondary';
+                    statusIndicator.textContent = 'Not Configured';
+                    botInstructions.style.display = 'none';
+                    return;
+                }
+                
+                // Update status indicator
+                if (data.running) {
+                    statusIndicator.className = 'badge bg-success';
+                    statusIndicator.textContent = 'Running';
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    botInstructions.style.display = 'block';
+                } else {
+                    statusIndicator.className = 'badge bg-danger';
+                    statusIndicator.textContent = 'Stopped';
+                    startBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    botInstructions.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Error checking Telegram status:', error);
+            });
     }
 });
