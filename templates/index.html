@@ -5,12 +5,12 @@
     <div class="col-md-8 col-lg-6">
         <div class="card shadow">
             <div class="card-header bg-primary text-white">
-                <h2 class="h5 mb-0">Download Videos</h2>
+                <h2 class="h5 mb-0"><i class="fas fa-download me-2"></i>Download Videos</h2>
             </div>
             <div class="card-body">
                 <form id="download-form" action="{{ url_for('download') }}" method="POST">
                     <div class="mb-3">
-                        <label for="url" class="form-label">Video URL</label>
+                        <label for="url" class="form-label fw-bold">Video URL</label>
                         <div class="input-group">
                             <span class="input-group-text platform-icon" id="platform-icon">
                                 <i class="fas fa-link"></i>
@@ -24,7 +24,7 @@
                     </div>
 
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-primary" id="download-btn">
+                        <button type="submit" class="btn btn-secondary" id="download-btn" disabled>
                             <i class="fas fa-download me-2"></i>Download Video
                         </button>
                     </div>
@@ -34,22 +34,37 @@
 
         <div class="card mt-4 shadow">
             <div class="card-header bg-secondary">
-                <h3 class="h5 mb-0">How to Use</h3>
+                <h3 class="h5 mb-0"><i class="fas fa-info-circle me-2"></i>How to Use</h3>
             </div>
             <div class="card-body">
                 <ol class="mb-0">
                     <li class="mb-2">Copy a video URL from YouTube, Instagram, or Twitter/X</li>
                     <li class="mb-2">Paste the URL in the input field above</li>
+                    <li class="mb-2">Wait for URL validation (the button will change color)</li>
                     <li class="mb-2">Click the "Download Video" button</li>
-                    <li>The download will start automatically</li>
+                    <li>Wait for the download to complete and save the file</li>
                 </ol>
+            </div>
+        </div>
+        
+        <div class="card mt-4 shadow">
+            <div class="card-header bg-info">
+                <h3 class="h5 mb-0 text-white"><i class="fas fa-lightbulb me-2"></i>Tips</h3>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li class="mb-2"><strong>YouTube:</strong> Works with regular videos, shorts, and playlists (downloads first video)</li>
+                    <li class="mb-2"><strong>Instagram:</strong> Works with feed videos, reels, and IGTV</li>
+                    <li class="mb-2"><strong>Twitter/X:</strong> Works with tweets containing videos</li>
+                    <li>If a download fails, try using a different URL or checking if the content is publicly accessible</li>
+                </ul>
             </div>
         </div>
 
         <div class="mt-4" id="download-progress" style="display: none;">
             <div class="card shadow">
                 <div class="card-header bg-info">
-                    <h3 class="h5 mb-0 text-white">Download Progress</h3>
+                    <h3 class="h5 mb-0 text-white"><i class="fas fa-spinner fa-spin me-2"></i>Download Progress</h3>
                 </div>
                 <div class="card-body">
                     <div class="progress mb-3">
@@ -58,6 +73,9 @@
                     </div>
                     <p class="text-center mb-0" id="progress-text">
                         Please wait while we process your video...
+                    </p>
+                    <p class="text-center text-muted small mt-2">
+                        This may take a few moments depending on the video size and platform.
                     </p>
                 </div>
             </div>

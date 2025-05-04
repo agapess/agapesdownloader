@@ -17,6 +17,7 @@
 .card {
     border-radius: 0.5rem;
     overflow: hidden;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }
 
 .form-control:focus {
@@ -35,19 +36,94 @@
 /* Make the download button stand out */
 #download-btn {
     transition: all 0.2s ease-in-out;
+    position: relative;
+    overflow: hidden;
 }
 
 #download-btn:hover {
     transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+#download-btn:active {
+    transform: translateY(0);
+}
+
+#download-btn:disabled {
+    opacity: 0.7;
+    transform: none;
+    box-shadow: none;
 }
 
 /* Custom valid/invalid feedback styles */
 .url-valid {
     color: var(--bs-success);
+    font-weight: 500;
 }
 
 .url-invalid {
     color: var(--bs-danger);
+    font-weight: 500;
+}
+
+/* Progress bar styling */
+.progress {
+    height: 0.8rem;
+    border-radius: 0.5rem;
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.progress-bar {
+    background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+    background-size: 1rem 1rem;
+}
+
+/* Enhance input groups */
+.input-group {
+    box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.05);
+    border-radius: 0.375rem;
+    transition: all 0.2s ease-in-out;
+}
+
+.input-group:focus-within {
+    box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1);
+}
+
+/* Platform icon in input group */
+.platform-icon {
+    font-size: 1.1rem;
+    width: 3rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.2s ease-in-out;
+}
+
+/* Improve cards spacing */
+.card + .card,
+.card + #download-progress {
+    margin-top: 1.5rem;
+}
+
+/* Better styling for flashed messages */
+.alert-success, .alert-danger, .alert-warning, .alert-info {
+    border-left-width: 4px;
+}
+
+.alert-success {
+    border-left-color: var(--bs-success);
+}
+
+.alert-danger {
+    border-left-color: var(--bs-danger);
+}
+
+.alert-warning {
+    border-left-color: var(--bs-warning);
+}
+
+.alert-info {
+    border-left-color: var(--bs-info);
 }
 
 /* Responsive adjustments */
@@ -55,5 +131,9 @@
     .card-header h2, 
     .card-header h3 {
         font-size: 1rem;
+    }
+    
+    .platform-icon {
+        width: 2.5rem;
     }
 }

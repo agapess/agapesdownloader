@@ -5,6 +5,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const downloadForm = document.getElementById('download-form');
     const downloadBtn = document.getElementById('download-btn');
     const downloadProgress = document.getElementById('download-progress');
+    const progressText = document.getElementById('progress-text');
+
+    // Handle alert auto-dismissal
+    const alerts = document.querySelectorAll('.alert-dismissible');
+    alerts.forEach(alert => {
+        setTimeout(() => {
+            // Create a Bootstrap alert instance and hide it
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        }, 8000); // Auto-dismiss after 8 seconds
+    });
 
     // Update the platform icon and feedback based on URL input
     urlInput.addEventListener('input', debounce(function() {
@@ -41,9 +52,27 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Show download progress indicator
+        // Determine platform for customized message
+        let platform = '';
+        if (url.includes('youtube') || url.includes('youtu.be')) {
+            platform = 'YouTube';
+        } else if (url.includes('instagram')) {
+            platform = 'Instagram';
+        } else if (url.includes('twitter') || url.includes('x.com')) {
+            platform = 'Twitter/X';
+        } else {
+            platform = 'video';
+        }
+        
+        // Show download progress indicator with customized message
+        progressText.textContent = `Please wait while we process your ${platform} video...`;
         downloadProgress.style.display = 'block';
         downloadBtn.disabled = true;
+        
+        // Scroll to the progress indicator
+        setTimeout(() => {
+            downloadProgress.scrollIntoView({behavior: 'smooth'});
+        }, 100);
     });
     
     // Helper function to validate URL format
@@ -71,19 +100,46 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.platform) {
                     setValidFeedback(`Valid ${data.platform.charAt(0).toUpperCase() + data.platform.slice(1)} URL`);
                     updatePlatformIcon(data.platform);
+                    // Enable button and add platform class
+                    downloadBtn.disabled = false;
+                    downloadBtn.classList.remove('btn-secondary', 'btn-primary', 'btn-danger', 'btn-info');
+                    
+                    // Apply appropriate color based on platform
+                    switch (data.platform) {
+                        case 'youtube':
+                            downloadBtn.classList.add('btn-danger');
+                            break;
+                        case 'instagram':
+                            downloadBtn.classList.add('btn-primary');
+                            break;
+                        case 'twitter':
+                            downloadBtn.classList.add('btn-info');
+                            break;
+                        default:
+                            downloadBtn.classList.add('btn-primary');
+                    }
                 } else {
                     setInvalidFeedback('Unsupported platform. Please use YouTube, Instagram, or Twitter/X');
                     resetPlatformIcon();
+                    downloadBtn.disabled = true;
+                    downloadBtn.classList.remove('btn-danger', 'btn-primary', 'btn-info');
+                    downloadBtn.classList.add('btn-secondary');
                 }
             } else {
                 setInvalidFeedback('Invalid URL format');
                 resetPlatformIcon();
+                downloadBtn.disabled = true;
+                downloadBtn.classList.remove('btn-danger', 'btn-primary', 'btn-info');
+                downloadBtn.classList.add('btn-secondary');
             }
         })
         .catch(error => {
             console.error('Error checking platform:', error);
             setInvalidFeedback('Error checking URL. Please try again.');
             resetPlatformIcon();
+            downloadBtn.disabled = true;
+            downloadBtn.classList.remove('btn-danger', 'btn-primary', 'btn-info');
+            downloadBtn.classList.add('btn-secondary');
         });
     }
     
@@ -135,6 +191,9 @@ document.addEventListener('DOMContentLoaded', function() {
         urlFeedback.textContent = 'Enter a valid video URL from YouTube, Instagram, or Twitter/X';
         urlFeedback.className = 'form-text';
         resetPlatformIcon();
+        downloadBtn.disabled = true;
+        downloadBtn.classList.remove('btn-danger', 'btn-primary', 'btn-info');
+        downloadBtn.classList.add('btn-secondary');
     }
     
     // Debounce function to limit how often the input handler fires
