@@ -1,410 +1,202 @@
+import json
+import logging
 import os
 import re
-import logging
-import urllib.parse
-import requests
-from datetime import datetime
 import subprocess
-import tempfile
-import shutil
+import urllib.parse
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+
 def is_valid_url(url):
-    """Check if the URL is valid"""
     try:
-        result = urllib.parse.urlparse(url)
-        return all([result.scheme, result.netloc])
+        r = urllib.parse.urlparse(url)
+        return bool(r.scheme and r.netloc)
     except ValueError:
         return False
 
+
 def get_platform(url):
-    """Detect platform from URL"""
-    url_lower = url.lower()
-    
-    if any(domain in url_lower for domain in ["youtube.com", "youtu.be"]):
-        return "youtube"
-    elif any(domain in url_lower for domain in ["instagram.com"]):
-        return "instagram"
-    elif any(domain in url_lower for domain in ["twitter.com", "x.com"]):
-        return "twitter"
+    """Return a display-friendly platform name, or 'Unknown' for unrecognised URLs."""
+    u = url.lower()
+    if any(d in u for d in ('youtube.com', 'youtu.be')):
+        return 'YouTube'
+    if 'instagram.com' in u:
+        return 'Instagram'
+    if any(d in u for d in ('twitter.com', 'x.com')):
+        return 'Twitter / X'
+    if 'tiktok.com' in u:
+        return 'TikTok'
+    if any(d in u for d in ('facebook.com', 'fb.com', 'fb.watch')):
+        return 'Facebook'
+    if 'reddit.com' in u:
+        return 'Reddit'
+    if 'vimeo.com' in u:
+        return 'Vimeo'
+    return 'Unknown'
+
+
+def get_video_info(url):
+    """Fetch video metadata via yt-dlp --dump-json.
+
+    Returns a dict with title, thumbnail, duration, extractor, formats.
+    Raises RuntimeError if yt-dlp fails or times out.
+    """
+    try:
+        result = subprocess.run(
+            ['yt-dlp', '--dump-json', '--no-playlist', url],
+            capture_output=True,
+            text=True,
+            timeout=45,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError('Timed out fetching video info — the URL may be slow or unsupported')
+
+    if result.returncode != 0:
+        msg = result.stderr.strip() or 'yt-dlp returned an error'
+        raise RuntimeError(msg)
+
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        raise RuntimeError('Could not parse video info from yt-dlp')
+
+    return _parse_info(data)
+
+
+def _parse_info(data):
+    duration = data.get('duration', 0) or 0
+    formats = []
+    seen_heights = set()
+
+    # Collect distinct video formats, best height first
+    for f in sorted(data.get('formats', []), key=lambda x: x.get('height') or 0, reverse=True):
+        height = f.get('height')
+        vcodec = f.get('vcodec', 'none')
+        if not height or vcodec == 'none':
+            continue
+        label = f'{height}p'
+        if label in seen_heights:
+            continue
+        seen_heights.add(label)
+
+        size = f.get('filesize') or f.get('filesize_approx')
+        if not size:
+            tbr = f.get('tbr') or 0
+            size = int(tbr * 1000 / 8 * duration) if tbr and duration else None
+
+        formats.append({
+            'format_id': f['format_id'],
+            'label': label,
+            'resolution': f'{f.get("width", "?")}x{height}',
+            'ext': 'mp4',
+            'vcodec': vcodec,
+            'acodec': f.get('acodec', ''),
+            'filesize_approx': size,
+            'is_best': False,
+        })
+
+    # Pick best audio-only stream
+    best_audio = max(
+        (f for f in data.get('formats', [])
+         if f.get('vcodec') == 'none' and f.get('acodec', 'none') != 'none'),
+        key=lambda f: f.get('filesize') or f.get('filesize_approx') or 0,
+        default=None,
+    )
+    if best_audio:
+        a_size = best_audio.get('filesize') or best_audio.get('filesize_approx')
+        formats.append({
+            'format_id': f'{best_audio["format_id"]}+audio_only',
+            'label': 'Audio only',
+            'resolution': 'MP3',
+            'ext': 'mp3',
+            'vcodec': 'none',
+            'acodec': best_audio.get('acodec', ''),
+            'filesize_approx': a_size,
+            'is_best': False,
+        })
+
+    # Mark best video format (highest quality ≤ 1080p; fall back to highest available)
+    video_fmts = [f for f in formats if f['label'] != 'Audio only']
+    if video_fmts:
+        preferred = next((f for f in video_fmts
+                          if int(f['label'].replace('p', '')) <= 1080), video_fmts[0])
+        preferred['is_best'] = True
+
+    return {
+        'title': data.get('title', 'Unknown'),
+        'thumbnail': data.get('thumbnail', ''),
+        'duration': duration,
+        'extractor': data.get('extractor_key') or data.get('extractor', 'Unknown'),
+        'formats': formats,
+    }
+
+
+def download_video(url, folder, format_id=None):
+    """Download any yt-dlp-supported URL.
+
+    Returns {'success': True, 'filename': str, 'path': str}
+         or {'success': False, 'error': str}.
+    """
+    os.makedirs(folder, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    output_template = os.path.join(folder, f'%(title)s_{timestamp}.%(ext)s')
+
+    is_audio_only = isinstance(format_id, str) and format_id.endswith('+audio_only')
+    raw_format_id = format_id.replace('+audio_only', '') if is_audio_only else format_id
+
+    if is_audio_only:
+        cmd = [
+            'yt-dlp',
+            '-f', raw_format_id,
+            '-x', '--audio-format', 'mp3',
+            '--no-playlist',
+            '-o', output_template,
+            url,
+        ]
+    elif format_id:
+        cmd = [
+            'yt-dlp',
+            '-f', format_id,
+            '--merge-output-format', 'mp4',
+            '--no-playlist',
+            '-o', output_template,
+            url,
+        ]
     else:
-        return None
-
-def sanitize_filename(filename):
-    """Sanitize filename to remove invalid characters"""
-    # Replace invalid characters with underscore
-    sanitized = re.sub(r'[\\/*?:"<>|]', "_", filename)
-    # Trim to reasonable length and add timestamp
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    max_length = 50  # Maximum length for base filename
-    
-    if len(sanitized) > max_length:
-        sanitized = sanitized[:max_length]
-    
-    return f"{sanitized}_{timestamp}"
-
-def download_youtube(url, download_folder):
-    """Download YouTube video using youtube-dl"""
-    try:
-        # Extract video ID if possible for better filename
-        video_id_match = re.search(r'(?:v=|\/)([-\w]+)', url)
-        video_id = video_id_match.group(1) if video_id_match else "unknown"
-        
-        # Create a timestamped filename
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        temp_filename = f"youtube_{video_id}_{timestamp}.%(ext)s"
-        output_path_template = os.path.join(download_folder, temp_filename)
-        
-        # Run youtube-dl command to download YouTube video
-        command = [
-            "youtube-dl", 
-            "--no-warnings",
-            "--format", "best",  # Get best quality
-            "--output", output_path_template,
-            url
+        cmd = [
+            'yt-dlp',
+            '-f', 'bestvideo+bestaudio/best',
+            '--merge-output-format', 'mp4',
+            '--no-playlist',
+            '-o', output_template,
+            url,
         ]
-        
-        logger.info(f"Executing YouTube download: {' '.join(command)}")
-        
-        # Try multiple formats if needed
-        try:
-            result = subprocess.run(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=True,
-                text=True
-            )
-            
-            logger.info(f"youtube-dl output: {result.stdout}")
-            
-            # Find the downloaded file
-            downloaded_files = [f for f in os.listdir(download_folder) 
-                              if f.startswith(f"youtube_{video_id}_{timestamp}")]
-            
-            if downloaded_files:
-                actual_filename = downloaded_files[0]  # Take the first matching file
-                actual_path = os.path.join(download_folder, actual_filename)
-                
-                if os.path.exists(actual_path) and os.path.getsize(actual_path) > 0:
-                    return {
-                        "success": True,
-                        "filename": actual_filename,
-                        "path": actual_path
-                    }
-            
-            # If we got here, we couldn't find the downloaded file
-            raise FileNotFoundError("Could not find downloaded video file")
-            
-        except subprocess.CalledProcessError as e:
-            # If the first attempt fails, try with a different format
-            logger.warning(f"First YouTube download attempt failed, trying with format 'mp4': {e.stderr}")
-            
-            # Try with mp4 format explicitly
-            command[3] = "mp4"  # Change format to mp4
-            
-            result = subprocess.run(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=True,
-                text=True
-            )
-            
-            # Find the downloaded file again
-            downloaded_files = [f for f in os.listdir(download_folder) 
-                              if f.startswith(f"youtube_{video_id}_{timestamp}")]
-            
-            if downloaded_files:
-                actual_filename = downloaded_files[0]  # Take the first matching file
-                actual_path = os.path.join(download_folder, actual_filename)
-                
-                if os.path.exists(actual_path) and os.path.getsize(actual_path) > 0:
-                    return {
-                        "success": True,
-                        "filename": actual_filename,
-                        "path": actual_path
-                    }
-            
-            # Still couldn't find a downloaded file
-            raise FileNotFoundError("Could not find downloaded video file after mp4 format attempt")
-    
-    except Exception as e:
-        logger.exception(f"YouTube download error: {str(e)}")
-        return {
-            "success": False,
-            "error": "Failed to download video. The video might be restricted or unavailable."
-        }
 
-def download_instagram(url, download_folder):
-    """Download Instagram video using youtube-dl"""
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        error = result.stderr.strip() or 'Download failed'
+        logger.error('yt-dlp error: %s', error)
+        return {'success': False, 'error': error}
+
+    # Find the file written in this download (contains the timestamp)
     try:
-        # Extract post shortcode from URL for better filename
-        parsed_url = urllib.parse.urlparse(url)
-        path_parts = parsed_url.path.strip('/').split('/')
-        
-        shortcode = None
-        for part in path_parts:
-            if part != "p" and part != "reel" and len(part) > 5:
-                shortcode = part
-                break
-                
-        if not shortcode:
-            shortcode = "unknown"
-        
-        # Create a timestamped filename
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        temp_filename = f"instagram_{shortcode}_{timestamp}.%(ext)s"
-        output_path_template = os.path.join(download_folder, temp_filename)
-        
-        # Run youtube-dl command to download Instagram video
-        command = [
-            "youtube-dl", 
-            "--no-warnings",
-            "--format", "best",
-            "--output", output_path_template,
-            url
-        ]
-        
-        logger.info(f"Executing Instagram download: {' '.join(command)}")
-        
-        try:
-            result = subprocess.run(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=True,
-                text=True
-            )
-            
-            logger.info(f"youtube-dl output: {result.stdout}")
-            
-            # Find the downloaded file
-            downloaded_files = [f for f in os.listdir(download_folder) 
-                              if f.startswith(f"instagram_{shortcode}_{timestamp}")]
-            
-            if downloaded_files:
-                actual_filename = downloaded_files[0]  # Take the first matching file
-                actual_path = os.path.join(download_folder, actual_filename)
-                
-                if os.path.exists(actual_path) and os.path.getsize(actual_path) > 0:
-                    return {
-                        "success": True,
-                        "filename": actual_filename,
-                        "path": actual_path
-                    }
-            
-            # If we got here, we couldn't find the downloaded file
-            raise FileNotFoundError("Could not find downloaded video file")
-            
-        except subprocess.CalledProcessError as e:
-            # If first attempt fails, try with cookies or different options
-            logger.warning(f"First Instagram download attempt failed, trying with a different approach: {e.stderr}")
-            
-            # Try with bestvideo+bestaudio
-            command[3] = "bestvideo+bestaudio"  # Change format
-            
-            try:
-                result = subprocess.run(
-                    command,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    check=True,
-                    text=True
-                )
-                
-                # Find the downloaded file again
-                downloaded_files = [f for f in os.listdir(download_folder) 
-                                 if f.startswith(f"instagram_{shortcode}_{timestamp}")]
-                
-                if downloaded_files:
-                    actual_filename = downloaded_files[0]  # Take the first matching file
-                    actual_path = os.path.join(download_folder, actual_filename)
-                    
-                    if os.path.exists(actual_path) and os.path.getsize(actual_path) > 0:
-                        return {
-                            "success": True,
-                            "filename": actual_filename,
-                            "path": actual_path
-                        }
-                
-                # Still couldn't find a downloaded file
-                raise FileNotFoundError("Could not find downloaded video file after format change attempt")
-                
-            except subprocess.CalledProcessError:
-                # If that also fails, try with just 'mp4' format
-                command[3] = "mp4"  # Change format to mp4
-                
-                result = subprocess.run(
-                    command,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    check=True,
-                    text=True
-                )
-                
-                # Find the downloaded file one last time
-                downloaded_files = [f for f in os.listdir(download_folder) 
-                                 if f.startswith(f"instagram_{shortcode}_{timestamp}")]
-                
-                if downloaded_files:
-                    actual_filename = downloaded_files[0]  # Take the first matching file
-                    actual_path = os.path.join(download_folder, actual_filename)
-                    
-                    if os.path.exists(actual_path) and os.path.getsize(actual_path) > 0:
-                        return {
-                            "success": True,
-                            "filename": actual_filename,
-                            "path": actual_path
-                        }
-                
-                # Final failure
-                raise FileNotFoundError("Could not find downloaded video file after multiple attempts")
-    
-    except Exception as e:
-        logger.exception(f"Instagram download error: {str(e)}")
-        return {
-            "success": False,
-            "error": "Failed to download video. The post may be private or unavailable."
-        }
+        files = sorted(
+            [f for f in os.listdir(folder) if timestamp in f],
+            key=lambda f: os.path.getmtime(os.path.join(folder, f)),
+            reverse=True,
+        )
+    except OSError:
+        files = []
 
-def download_twitter(url, download_folder):
-    """Download Twitter/X video using youtube-dl"""
-    try:
-        # Extract tweet ID for better filename
-        parsed_url = urllib.parse.urlparse(url)
-        path_parts = parsed_url.path.strip('/').split('/')
-        tweet_id = path_parts[-1] if path_parts else "unknown"
-        
-        # Create a timestamped filename
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        temp_filename = f"twitter_{tweet_id}_{timestamp}.%(ext)s"
-        output_path_template = os.path.join(download_folder, temp_filename)
-        
-        # Run youtube-dl command to download Twitter video
-        command = [
-            "youtube-dl", 
-            "--no-warnings",
-            "--format", "best",  # Get best quality
-            "--output", output_path_template,
-            url
-        ]
-        
-        logger.info(f"Executing Twitter download: {' '.join(command)}")
-        
-        try:
-            result = subprocess.run(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=True,
-                text=True
-            )
-            
-            logger.info(f"youtube-dl output: {result.stdout}")
-            
-            # Find the downloaded file
-            downloaded_files = [f for f in os.listdir(download_folder) 
-                              if f.startswith(f"twitter_{tweet_id}_{timestamp}")]
-            
-            if downloaded_files:
-                actual_filename = downloaded_files[0]  # Take the first matching file
-                actual_path = os.path.join(download_folder, actual_filename)
-                
-                if os.path.exists(actual_path) and os.path.getsize(actual_path) > 0:
-                    return {
-                        "success": True,
-                        "filename": actual_filename,
-                        "path": actual_path
-                    }
-            
-            # If we got here, we couldn't find the downloaded file
-            raise FileNotFoundError("Could not find downloaded video file")
-            
-        except subprocess.CalledProcessError as e:
-            # If youtube-dl fails, try with a different format option
-            logger.warning(f"First Twitter download attempt failed, trying with different format: {e.stderr}")
-            
-            # Try with mp4 format explicitly
-            command[3] = "mp4"  # Change format to mp4
-            
-            try:
-                result = subprocess.run(
-                    command,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    check=True,
-                    text=True
-                )
-                
-                # Find the downloaded file again
-                downloaded_files = [f for f in os.listdir(download_folder) 
-                                  if f.startswith(f"twitter_{tweet_id}_{timestamp}")]
-                
-                if downloaded_files:
-                    actual_filename = downloaded_files[0]  # Take the first matching file
-                    actual_path = os.path.join(download_folder, actual_filename)
-                    
-                    if os.path.exists(actual_path) and os.path.getsize(actual_path) > 0:
-                        return {
-                            "success": True,
-                            "filename": actual_filename,
-                            "path": actual_path
-                        }
-                
-                # Still couldn't find a downloaded file
-                raise FileNotFoundError("Could not find downloaded video file after mp4 format attempt")
-                
-            except subprocess.CalledProcessError:
-                # If that also fails, try with a different technique
-                command[3] = "worstaudio+worstvideo"  # Sometimes lower quality works when better fails
-                
-                result = subprocess.run(
-                    command,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    check=True,
-                    text=True
-                )
-                
-                # Find the downloaded file one last time
-                downloaded_files = [f for f in os.listdir(download_folder) 
-                                  if f.startswith(f"twitter_{tweet_id}_{timestamp}")]
-                
-                if downloaded_files:
-                    actual_filename = downloaded_files[0]  # Take the first matching file
-                    actual_path = os.path.join(download_folder, actual_filename)
-                    
-                    if os.path.exists(actual_path) and os.path.getsize(actual_path) > 0:
-                        return {
-                            "success": True,
-                            "filename": actual_filename,
-                            "path": actual_path
-                        }
-                
-                # Final failure
-                raise FileNotFoundError("Could not find downloaded video file after multiple attempts")
-            
-    except Exception as e:
-        logger.exception(f"Twitter download error: {str(e)}")
-        return {
-            "success": False,
-            "error": "Failed to download Twitter/X video. Please check if the tweet is publicly accessible."
-        }
+    if not files:
+        return {'success': False, 'error': 'File not found after download'}
 
-def download_video(url, download_folder):
-    """Main function to download videos from different platforms"""
-    platform = get_platform(url)
-    
-    if platform == "youtube":
-        return download_youtube(url, download_folder)
-    elif platform == "instagram":
-        return download_instagram(url, download_folder)
-    elif platform == "twitter":
-        return download_twitter(url, download_folder)
-    else:
-        return {
-            "success": False,
-            "error": "Unsupported platform"
-        }
+    filename = files[0]
+    return {
+        'success': True,
+        'filename': filename,
+        'path': os.path.join(folder, filename),
+    }
