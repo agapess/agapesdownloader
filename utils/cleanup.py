@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 import threading
 import time
 
@@ -40,5 +41,37 @@ def start_cleanup_thread(folder, interval_seconds=3600):
             time.sleep(interval_seconds)
 
     t = threading.Thread(target=_loop, daemon=True, name='cleanup-thread')
+    t.start()
+    return t
+
+
+def update_ytdlp():
+    """Run yt-dlp -U to self-update. Returns True on success."""
+    try:
+        result = subprocess.run(
+            ['yt-dlp', '-U'],
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode == 0:
+            logger.info('yt-dlp update: %s', result.stdout.strip() or 'up to date')
+        else:
+            logger.warning('yt-dlp update failed: %s', result.stderr.strip())
+        return result.returncode == 0
+    except Exception as e:
+        logger.warning('yt-dlp update error: %s', e)
+        return False
+
+
+def start_ytdlp_updater_thread(interval_seconds=86400):
+    """Start a daemon thread that updates yt-dlp every interval_seconds (default 24h)."""
+
+    def _loop():
+        # Run once at startup, then every interval
+        update_ytdlp()
+        while True:
+            time.sleep(interval_seconds)
+            update_ytdlp()
+
+    t = threading.Thread(target=_loop, daemon=True, name='ytdlp-updater')
     t.start()
     return t

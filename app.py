@@ -228,9 +228,11 @@ def _start_background_services():
             return
         _services_started = True
 
-    from utils.cleanup import start_cleanup_thread
+    from utils.cleanup import start_cleanup_thread, start_ytdlp_updater_thread
     start_cleanup_thread(DOWNLOAD_FOLDER)
     logger.info('Cleanup thread started')
+    start_ytdlp_updater_thread()
+    logger.info('yt-dlp auto-updater thread started')
 
     token = os.environ.get('TELEGRAM_BOT_TOKEN')
     if token:
