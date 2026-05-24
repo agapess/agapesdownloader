@@ -2,7 +2,6 @@ import logging
 import os
 import threading
 import time
-from datetime import datetime, timezone
 
 from flask import (Flask, flash, jsonify, redirect, render_template,
                    request, send_from_directory, session, url_for)
@@ -179,18 +178,23 @@ def admin_panel():
 def admin_delete():
     redir = _require_admin()
     if redir:
-        return redir, 401
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
 
     filename = (request.json or {}).get('filename', '')
-    # Prevent path traversal
-    if not filename or os.sep in filename or filename.startswith('.'):
+    if not filename:
+        return jsonify({'success': False, 'error': 'Invalid filename'}), 400
+    resolved = os.path.realpath(os.path.join(DOWNLOAD_FOLDER, filename))
+    safe_root = os.path.realpath(DOWNLOAD_FOLDER)
+    if not resolved.startswith(safe_root + os.sep):
+        return jsonify({'success': False, 'error': 'Invalid filename'}), 400
+    # Only allow bare filenames — no subdirectory component
+    if os.path.dirname(resolved) != safe_root:
         return jsonify({'success': False, 'error': 'Invalid filename'}), 400
 
-    path = os.path.join(DOWNLOAD_FOLDER, filename)
-    if not os.path.isfile(path):
+    if not os.path.isfile(resolved):
         return jsonify({'success': False, 'error': 'File not found'}), 404
 
-    os.remove(path)
+    os.remove(resolved)
     return jsonify({'success': True})
 
 
@@ -198,7 +202,7 @@ def admin_delete():
 def admin_delete_all():
     redir = _require_admin()
     if redir:
-        return redir, 401
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
 
     for name in os.listdir(DOWNLOAD_FOLDER):
         path = os.path.join(DOWNLOAD_FOLDER, name)

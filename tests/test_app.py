@@ -167,6 +167,20 @@ def test_admin_delete_all(admin_client, tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_admin_delete_rejects_absolute_path(admin_client, tmp_path):
+    with patch('app.DOWNLOAD_FOLDER', str(tmp_path)):
+        resp = admin_client.post('/admin/delete',
+                                  json={'filename': '/etc/passwd'})
+    assert resp.status_code == 400
+
+
+def test_admin_delete_rejects_forward_slash_subdir(admin_client, tmp_path):
+    with patch('app.DOWNLOAD_FOLDER', str(tmp_path)):
+        resp = admin_client.post('/admin/delete',
+                                  json={'filename': 'subdir/file.mp4'})
+    assert resp.status_code == 400
+
+
 def test_admin_logout_clears_session(admin_client):
     resp = admin_client.get('/admin/logout', follow_redirects=False)
     assert resp.status_code == 302
