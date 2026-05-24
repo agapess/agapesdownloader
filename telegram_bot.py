@@ -182,6 +182,7 @@ def run_bot_thread():
 
 
 async def _start_bot(token):
+    import asyncio
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler('start', cmd_start))
     app.add_handler(CommandHandler('help', cmd_help))
@@ -189,7 +190,10 @@ async def _start_bot(token):
     app.add_handler(CallbackQueryHandler(handle_format_callback, pattern='^fmt:'))
 
     logger.info('Telegram bot starting polling')
-    await app.run_polling(drop_pending_updates=True, stop_signals=None)
+    async with app:
+        await app.start()
+        await app.updater.start_polling(drop_pending_updates=True)
+        await asyncio.Event().wait()  # run forever until thread is killed
 
 
 if __name__ == '__main__':
