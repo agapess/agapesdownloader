@@ -189,7 +189,7 @@ async def _start_bot(token):
     app.add_handler(CallbackQueryHandler(handle_format_callback, pattern='^fmt:'))
 
     logger.info('Telegram bot starting polling')
-    await app.run_polling(drop_pending_updates=True)
+    await app.run_polling(drop_pending_updates=True, stop_signals=None)
 
 
 if __name__ == '__main__':
