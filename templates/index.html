@@ -1,107 +1,103 @@
-{% extends 'layout.html' %}
+{% extends "layout.html" %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">
-                <h2 class="h5 mb-0"><i class="fas fa-download me-2"></i>Download Videos</h2>
-            </div>
-            <div class="card-body">
-                <form id="download-form" action="{{ url_for('download') }}" method="POST">
-                    <div class="mb-3">
-                        <label for="url" class="form-label fw-bold">Video URL</label>
-                        <div class="input-group">
-                            <span class="input-group-text platform-icon" id="platform-icon">
-                                <i class="fas fa-link"></i>
-                            </span>
-                            <input type="url" class="form-control" id="url" name="url" 
-                                   placeholder="Paste YouTube, Instagram, Twitter/X, TikTok, or Facebook video URL" required>
-                        </div>
-                        <div class="form-text" id="url-feedback">
-                            Enter a valid video URL from YouTube, Instagram, Twitter/X, TikTok, or Facebook
-                        </div>
-                    </div>
+<section class="hero">
+  <div class="hero-badge">✨ Supports 1000+ websites</div>
+  <h1 class="hero-title">
+    Download Any Video,<br>
+    <span class="gradient-text">Anywhere.</span>
+  </h1>
+  <p class="hero-subtitle">
+    YouTube · Instagram · TikTok · Twitter · Reddit · Vimeo · and thousands more
+  </p>
 
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-secondary" id="download-btn" disabled>
-                            <i class="fas fa-download me-2"></i>Download Video
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+  <!-- Download card -->
+  <div class="glass-card" style="max-width:620px;margin:0 auto;">
+    <form id="download-form" method="POST" action="/download">
+      <!-- URL input -->
+      <div class="url-input-wrap" id="url-wrap">
+        <span class="url-icon">🔗</span>
+        <input
+          id="url-input"
+          name="url"
+          type="url"
+          placeholder="Paste any video URL here..."
+          autocomplete="off"
+          spellcheck="false"
+        >
+      </div>
+      <div class="url-feedback" id="url-feedback"></div>
 
-        <div class="card mt-4 shadow">
-            <div class="card-header bg-secondary">
-                <h3 class="h5 mb-0"><i class="fas fa-info-circle me-2"></i>How to Use</h3>
-            </div>
-            <div class="card-body">
-                <ol class="mb-0">
-                    <li class="mb-2">Copy a video URL from YouTube, Instagram, Twitter/X, TikTok, or Facebook</li>
-                    <li class="mb-2">Paste the URL in the input field above</li>
-                    <li class="mb-2">Wait for URL validation (the button will change color)</li>
-                    <li class="mb-2">Click the "Download Video" button</li>
-                    <li>Wait for the download to complete and save the file</li>
-                </ol>
-            </div>
-        </div>
-        
-        <div class="card mt-4 shadow">
-            <div class="card-header bg-info">
-                <h3 class="h5 mb-0 text-white"><i class="fas fa-lightbulb me-2"></i>Tips</h3>
-            </div>
-            <div class="card-body">
-                <ul class="mb-0">
-                    <li class="mb-2"><strong>YouTube:</strong> Works with regular videos, shorts, and playlists (downloads first video)</li>
-                    <li class="mb-2"><strong>Instagram:</strong> Works with feed videos, reels, and IGTV</li>
-                    <li class="mb-2"><strong>Twitter/X:</strong> Works with tweets containing videos</li>
-                    <li class="mb-2"><strong>TikTok:</strong> Works with TikTok videos (requires publicly accessible content)</li>
-                    <li class="mb-2"><strong>Facebook:</strong> Works with public videos and shared content</li>
-                    <li>If a download fails, try using a different URL or checking if the content is publicly accessible</li>
-                </ul>
-            </div>
-        </div>
+      <!-- Hidden format id -->
+      <input type="hidden" name="format_id" id="selected-format-id" value="">
 
-        {% if bot_active %}
-        <div class="card mt-4 shadow">
-            <div class="card-header bg-primary">
-                <h3 class="h5 mb-0 text-white"><i class="fab fa-telegram me-2"></i>Telegram Bot</h3>
-            </div>
-            <div class="card-body">
-                <p>You can also use our Telegram bot to download videos directly in your Telegram app!</p>
-                <div class="alert alert-info">
-                    <p class="mb-1"><strong>How to use the Telegram bot:</strong></p>
-                    <ol class="mb-0">
-                        <li>Search for <span class="fw-bold">@{{ bot_username }}</span> on Telegram</li>
-                        <li>Start a chat with the bot by clicking <strong>Start</strong></li>
-                        <li>Send a YouTube, Instagram, Twitter/X, TikTok, or Facebook video URL to the bot</li>
-                        <li>The bot will download and send the video back to you</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
-        {% endif %}
+      <!-- Format picker panel (shown after URL is analysed) -->
+      <div id="format-panel">
+        <div class="video-meta" id="video-meta"></div>
+        <div class="formats-label">Select format &amp; quality</div>
+        <div class="format-list" id="format-list"></div>
+        <div style="margin-top:14px;"></div>
+      </div>
 
-        <div class="mt-4" id="download-progress" style="display: none;">
-            <div class="card shadow">
-                <div class="card-header bg-info">
-                    <h3 class="h5 mb-0 text-white"><i class="fas fa-spinner fa-spin me-2"></i>Download Progress</h3>
-                </div>
-                <div class="card-body">
-                    <div class="progress mb-3">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                             role="progressbar" style="width: 100%"></div>
-                    </div>
-                    <p class="text-center mb-0" id="progress-text">
-                        Please wait while we process your video...
-                    </p>
-                    <p class="text-center text-muted small mt-2">
-                        This may take a few moments depending on the video size and platform.
-                    </p>
-                </div>
-            </div>
-        </div>
+      <!-- Download button -->
+      <button type="submit" class="btn-download" id="download-btn" disabled>
+        <span>⬇</span>
+        <span id="download-btn-text">Download</span>
+      </button>
+    </form>
+  </div>
+
+  <!-- Platform icons -->
+  <div class="platform-icons">
+    <div class="platform-icon" style="background:#ff0000;" title="YouTube">▶</div>
+    <div class="platform-icon" style="background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);" title="Instagram"></div>
+    <div class="platform-icon" style="background:#000;border:1px solid #333;" title="TikTok">TK</div>
+    <div class="platform-icon" style="background:#1da1f2;" title="Twitter">𝕏</div>
+    <div class="platform-icon" style="background:#ff4500;" title="Reddit">r/</div>
+    <div class="platform-icon" style="background:#1ab7ea;" title="Vimeo">V</div>
+    <div class="platform-icon" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.5);" title="1000+ more">+∞</div>
+  </div>
+</section>
+
+<!-- Telegram bot card -->
+{% if bot_active %}
+<div class="telegram-card" style="max-width:620px;">
+  <div class="telegram-header">
+    <div class="telegram-icon">✈</div>
+    <div>
+      <div class="telegram-title">Download via Telegram Bot</div>
+      <div class="telegram-sub">Prefer Telegram? Send links directly to the bot</div>
     </div>
+    <div class="telegram-status active">
+      <span class="dot"></span> Active
+    </div>
+  </div>
+  <a class="btn-telegram" href="https://t.me/{{ bot_username }}" target="_blank" rel="noopener">
+    <span>✈</span>
+    <span>Open @{{ bot_username }} on Telegram</span>
+  </a>
+  <div class="warning-banner">
+    <span style="font-size:16px;flex-shrink:0;">⚠️</span>
+    <div>
+      <strong>50 MB Limit</strong>
+      <span> — Telegram bots can only send files up to 50 MB. For larger videos, use the web downloader above.</span>
+    </div>
+  </div>
 </div>
+{% else %}
+<div class="telegram-card" style="max-width:620px;">
+  <div class="telegram-header">
+    <div class="telegram-icon" style="background:rgba(0,136,255,0.3);">✈</div>
+    <div>
+      <div class="telegram-title" style="opacity:0.6;">Telegram Bot</div>
+      <div class="telegram-sub">Set TELEGRAM_BOT_TOKEN in .env to enable</div>
+    </div>
+    <div class="telegram-status inactive">
+      <span class="dot" style="background:rgba(255,255,255,0.3);"></span> Offline
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div style="height:48px;"></div>
 {% endblock %}

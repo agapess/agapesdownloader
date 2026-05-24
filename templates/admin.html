@@ -1,1 +1,87 @@
-<html><body>Admin Panel</body></html>
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="admin-page">
+  <div class="admin-header">
+    <div>
+      <div class="admin-title">⚙ Admin Panel</div>
+      <div class="admin-sub">Manage downloaded files · Auto-deleted after 7 days</div>
+    </div>
+    <div class="admin-actions">
+      <button class="btn-danger-outline" onclick="deleteAll()">🗑 Delete All</button>
+      <button class="btn-outline" onclick="location.reload()">↻ Refresh</button>
+      <a class="btn-outline" href="{{ url_for('admin_logout') }}">Sign Out</a>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Total Files</div>
+      <div class="stat-value">{{ files|length }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Size</div>
+      <div class="stat-value">{{ total_size }}</div>
+    </div>
+    <div class="stat-card {% if expiring_count > 0 %}warn{% endif %}">
+      <div class="stat-label">Expiring Soon</div>
+      <div class="stat-value">{{ expiring_count }}</div>
+    </div>
+  </div>
+
+  <!-- File table -->
+  <div class="file-table-wrap">
+    {% if files %}
+      <div class="file-table-head">
+        <div>Filename</div>
+        <div>Size</div>
+        <div>Downloaded</div>
+        <div>Expires In</div>
+        <div>Action</div>
+      </div>
+      {% for f in files %}
+        <div class="file-row {% if f.expiring_soon %}expiring{% endif %}">
+          <div class="file-name">
+            <div class="file-dot"></div>
+            <span class="file-name-text" title="{{ f.filename }}">{{ f.filename }}</span>
+          </div>
+          <div class="file-size">{{ f.size_human }}</div>
+          <div class="file-age">{{ f.age_human }} ago</div>
+          <div class="file-expiry {% if f.expiring_soon %}warn{% else %}ok{% endif %}">
+            {% if f.expiring_soon %}⚠ {% endif %}{{ f.expiry_human }}
+          </div>
+          <div>
+            <button class="btn-delete" onclick="deleteFile('{{ f.filename }}', this)">
+              Delete
+            </button>
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="file-table-empty">No downloaded files yet.</div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+async function deleteFile(filename, btn) {
+  if (!confirm('Delete ' + filename + '?')) return;
+  btn.disabled = true;
+  const resp = await fetch('/admin/delete', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({filename}),
+  });
+  if (resp.ok) btn.closest('.file-row').remove();
+  else { alert('Delete failed'); btn.disabled = false; }
+}
+
+async function deleteAll() {
+  if (!confirm('Delete ALL files? This cannot be undone.')) return;
+  const resp = await fetch('/admin/delete-all', {method: 'POST'});
+  if (resp.ok) location.reload();
+  else alert('Failed to delete files');
+}
+</script>
+{% endblock %}

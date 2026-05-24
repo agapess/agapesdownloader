@@ -1,1 +1,29 @@
-<html><body>{% if error %}<p>{{ error }}</p>{% endif %}<form method="POST"><input name="password"><button>Login</button></form></body></html>
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="login-page">
+  <div class="glass-card login-card">
+    <div class="login-title">⚙ Admin Panel</div>
+    <div class="login-sub">Enter your admin password to continue</div>
+
+    {% if error %}
+      <div class="login-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('admin_login') }}">
+      <label class="form-label" for="password">Password</label>
+      <input
+        class="form-input"
+        id="password"
+        name="password"
+        type="password"
+        placeholder="Enter admin password"
+        autofocus
+      >
+      <button type="submit" class="btn-download" style="font-size:14px;">
+        Sign In
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}
