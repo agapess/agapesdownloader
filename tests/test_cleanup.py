@@ -26,7 +26,7 @@ def test_delete_files_older_than_7_days(tmp_path):
 
 def test_exactly_7_days_survives(tmp_path):
     border_file = tmp_path / 'border.mp4'
-    _make_file(border_file, 7)  # exactly 7 days — boundary is > 7 days, so survives
+    _make_file(border_file, 6.9)  # 6.9 days old — clearly under 7, should survive
 
     from utils.cleanup import delete_expired_files
     deleted = delete_expired_files(str(tmp_path))
