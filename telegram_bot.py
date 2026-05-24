@@ -27,7 +27,7 @@ def _fmt_size(n):
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        '👋 Hi! I\'m VidGrab Bot.\n\n'
+        '👋 Hi! I\'m Agapes Grabber Bot.\n\n'
         'Send me any video link — I\'ll show you available qualities to choose from.\n\n'
         '⚠️ *Telegram limit: 50 MB per file.* For larger videos, use the web app.',
         parse_mode='Markdown',
