@@ -18,7 +18,7 @@ def is_valid_url(url):
 
 
 def get_platform(url):
-    """Return a display-friendly platform name, or 'Unknown' for unrecognised URLs."""
+    """Return a display-friendly platform name, or None for unrecognised URLs."""
     u = url.lower()
     if any(d in u for d in ('youtube.com', 'youtu.be')):
         return 'YouTube'
@@ -34,7 +34,7 @@ def get_platform(url):
         return 'Reddit'
     if 'vimeo.com' in u:
         return 'Vimeo'
-    return 'Unknown'
+    return None
 
 
 def get_video_info(url):

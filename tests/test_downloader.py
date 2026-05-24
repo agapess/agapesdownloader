@@ -227,3 +227,15 @@ def test_is_valid_url_accepts_http():
 def test_is_valid_url_rejects_bare_string():
     from utils.downloader import is_valid_url
     assert is_valid_url('not a url') is False
+
+
+# ── get_platform ────────────────────────────────────────────────────────────
+
+def test_get_platform_returns_none_for_unknown():
+    from utils.downloader import get_platform
+    assert get_platform('https://example.com/some/video') is None
+
+
+def test_get_platform_returns_youtube_for_youtube():
+    from utils.downloader import get_platform
+    assert get_platform('https://youtube.com/watch?v=abc') == 'YouTube'
