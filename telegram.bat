@@ -1,0 +1,2 @@
+SET TELEGRAM_BOT_TOKEN=6514586066:AAHwcaJyji_Qe8GAMLHUlel0fn3VC3FUv58
+python telegram_bot.py
