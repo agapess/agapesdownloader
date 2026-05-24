@@ -30,41 +30,249 @@
     </div>
   </div>
 
-  <!-- File table -->
-  <div class="file-table-wrap">
-    {% if files %}
-      <div class="file-table-head">
-        <div>Filename</div>
-        <div>Size</div>
-        <div>Downloaded</div>
-        <div>Expires In</div>
-        <div>Action</div>
+  <!-- File grid with thumbnails -->
+  {% if files %}
+  <div class="file-grid">
+    {% for f in files %}
+    <div class="file-card {% if f.expiring_soon %}expiring{% endif %}">
+      <!-- Thumbnail / preview area -->
+      <div class="file-thumb-wrap" onclick="openPreview('{{ f.filename }}', {{ 'true' if f.filename.endswith('.mp3') else 'false' }})">
+        {% if f.filename.endswith('.mp3') %}
+          <div class="file-thumb-placeholder">🎵</div>
+        {% else %}
+          <img
+            class="file-thumb"
+            src="{{ url_for('admin_thumb', filename=f.filename) }}"
+            alt=""
+            loading="lazy"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+          >
+          <div class="file-thumb-placeholder" style="display:none;">🎬</div>
+        {% endif %}
+        <div class="file-thumb-play">▶</div>
       </div>
-      {% for f in files %}
-        <div class="file-row {% if f.expiring_soon %}expiring{% endif %}">
-          <div class="file-name">
-            <div class="file-dot"></div>
-            <span class="file-name-text" title="{{ f.filename }}">{{ f.filename }}</span>
-          </div>
-          <div class="file-size">{{ f.size_human }}</div>
-          <div class="file-age">{{ f.age_human }} ago</div>
-          <div class="file-expiry {% if f.expiring_soon %}warn{% else %}ok{% endif %}">
+
+      <!-- File info -->
+      <div class="file-card-body">
+        <div class="file-card-name" title="{{ f.filename }}">{{ f.filename }}</div>
+        <div class="file-card-meta">
+          <span>{{ f.size_human }}</span>
+          <span>{{ f.age_human }} ago</span>
+          <span class="{% if f.expiring_soon %}file-expiry warn{% else %}file-expiry ok{% endif %}">
             {% if f.expiring_soon %}⚠ {% endif %}{{ f.expiry_human }}
-          </div>
-          <div>
-            <button class="btn-delete" onclick="deleteFile('{{ f.filename }}', this)">
-              Delete
-            </button>
-          </div>
+          </span>
         </div>
-      {% endfor %}
-    {% else %}
+        <div class="file-card-actions">
+          <a class="btn-card-dl" href="{{ url_for('admin_download', filename=f.filename) }}">⬇ Download</a>
+          <button class="btn-delete" onclick="deleteFile('{{ f.filename }}', this)">🗑</button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <div class="file-table-wrap">
       <div class="file-table-empty">No downloaded files yet.</div>
-    {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+<!-- Preview modal -->
+<div id="preview-modal" class="modal-overlay" onclick="closePreview(event)">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closePreview()">✕</button>
+    <div id="modal-filename" class="modal-title"></div>
+    <video id="preview-video" controls autoplay style="display:none;width:100%;max-height:70vh;border-radius:10px;"></video>
+    <audio id="preview-audio" controls autoplay style="display:none;width:100%;margin-top:16px;"></audio>
   </div>
 </div>
 
+<style>
+/* ── File grid ─────────────────────────────────────────────────────────── */
+.file-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.file-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.file-card:hover { border-color: rgba(255,255,255,0.22); transform: translateY(-2px); }
+.file-card.expiring { border-color: rgba(255,170,0,0.3); }
+
+.file-thumb-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: rgba(0,0,0,0.4);
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.file-thumb-placeholder {
+  font-size: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.file-thumb-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: rgba(255,255,255,0.85);
+  background: rgba(0,0,0,0.3);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.file-thumb-wrap:hover .file-thumb-play { opacity: 1; }
+
+.file-card-body { padding: 12px 14px; }
+
+.file-card-name {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 6px;
+}
+
+.file-card-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.file-card-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-card-dl {
+  flex: 1;
+  background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  text-align: center;
+  transition: opacity 0.2s;
+}
+.btn-card-dl:hover { opacity: 0.88; }
+
+/* ── Modal ─────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  backdrop-filter: blur(6px);
+}
+.modal-overlay.open { display: flex; }
+
+.modal-box {
+  background: #0d1b2a;
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  padding: 24px;
+  width: 100%;
+  max-width: 820px;
+  position: relative;
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(255,255,255,0.08);
+  border: none;
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+.modal-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
+.modal-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  padding-right: 40px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+</style>
+
 <script>
+function openPreview(filename, isAudio) {
+  const modal = document.getElementById('preview-modal');
+  const video = document.getElementById('preview-video');
+  const audio = document.getElementById('preview-audio');
+  const title = document.getElementById('modal-filename');
+
+  const url = '/admin/stream/' + encodeURIComponent(filename);
+  title.textContent = filename;
+
+  if (isAudio) {
+    audio.src = url;
+    audio.style.display = 'block';
+    video.style.display = 'none';
+  } else {
+    video.src = url;
+    video.style.display = 'block';
+    audio.style.display = 'none';
+  }
+
+  modal.classList.add('open');
+}
+
+function closePreview(e) {
+  if (e && e.target !== document.getElementById('preview-modal')) return;
+  const modal = document.getElementById('preview-modal');
+  modal.classList.remove('open');
+  document.getElementById('preview-video').pause();
+  document.getElementById('preview-audio').pause();
+  document.getElementById('preview-video').src = '';
+  document.getElementById('preview-audio').src = '';
+}
+
 async function deleteFile(filename, btn) {
   if (!confirm('Delete ' + filename + '?')) return;
   btn.disabled = true;
@@ -73,7 +281,7 @@ async function deleteFile(filename, btn) {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({filename}),
   });
-  if (resp.ok) btn.closest('.file-row').remove();
+  if (resp.ok) btn.closest('.file-card').remove();
   else { alert('Delete failed'); btn.disabled = false; }
 }
 

@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 import threading
 import time
 
@@ -16,7 +17,9 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-change-me')
 
 DOWNLOAD_FOLDER = os.path.join(os.getcwd(), 'downloads')
+THUMBS_FOLDER = os.path.join(DOWNLOAD_FOLDER, '.thumbs')
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+os.makedirs(THUMBS_FOLDER, exist_ok=True)
 
 
 # ── context processor ────────────────────────────────────────────────────────
@@ -174,6 +177,61 @@ def admin_panel():
     )
 
 
+@app.route('/admin/download/<path:filename>')
+def admin_download(filename):
+    redir = _require_admin()
+    if redir:
+        return redir
+    resolved = os.path.realpath(os.path.join(DOWNLOAD_FOLDER, filename))
+    safe_root = os.path.realpath(DOWNLOAD_FOLDER)
+    if not resolved.startswith(safe_root + os.sep) or os.path.dirname(resolved) != safe_root:
+        return 'Invalid filename', 400
+    return send_from_directory(DOWNLOAD_FOLDER, filename, as_attachment=True)
+
+
+@app.route('/admin/thumb/<path:filename>')
+def admin_thumb(filename):
+    redir = _require_admin()
+    if redir:
+        return redir, 401
+    resolved = os.path.realpath(os.path.join(DOWNLOAD_FOLDER, filename))
+    safe_root = os.path.realpath(DOWNLOAD_FOLDER)
+    if not resolved.startswith(safe_root + os.sep) or os.path.dirname(resolved) != safe_root:
+        return 'Invalid filename', 400
+    if not os.path.isfile(resolved):
+        return 'Not found', 404
+
+    # Serve cached thumbnail if it exists
+    thumb_path = os.path.join(THUMBS_FOLDER, filename + '.jpg')
+    if not os.path.isfile(thumb_path):
+        # Generate with ffmpeg — extract frame at 1 second
+        try:
+            subprocess.run(
+                ['ffmpeg', '-y', '-i', resolved, '-ss', '00:00:01',
+                 '-vframes', '1', '-q:v', '5', thumb_path],
+                capture_output=True, timeout=15,
+            )
+        except Exception:
+            pass
+
+    if os.path.isfile(thumb_path):
+        from flask import send_file
+        return send_file(thumb_path, mimetype='image/jpeg')
+    return 'No thumbnail', 404
+
+
+@app.route('/admin/stream/<path:filename>')
+def admin_stream(filename):
+    redir = _require_admin()
+    if redir:
+        return redir
+    resolved = os.path.realpath(os.path.join(DOWNLOAD_FOLDER, filename))
+    safe_root = os.path.realpath(DOWNLOAD_FOLDER)
+    if not resolved.startswith(safe_root + os.sep) or os.path.dirname(resolved) != safe_root:
+        return 'Invalid filename', 400
+    return send_from_directory(DOWNLOAD_FOLDER, filename)
+
+
 @app.route('/admin/delete', methods=['POST'])
 def admin_delete():
     redir = _require_admin()
@@ -195,6 +253,10 @@ def admin_delete():
         return jsonify({'success': False, 'error': 'File not found'}), 404
 
     os.remove(resolved)
+    # Remove cached thumbnail if present
+    thumb = os.path.join(THUMBS_FOLDER, filename + '.jpg')
+    if os.path.isfile(thumb):
+        os.remove(thumb)
     return jsonify({'success': True})
 
 
@@ -211,6 +273,13 @@ def admin_delete_all():
                 os.remove(path)
             except OSError:
                 pass
+
+    # Clear all cached thumbnails too
+    for name in os.listdir(THUMBS_FOLDER):
+        try:
+            os.remove(os.path.join(THUMBS_FOLDER, name))
+        except OSError:
+            pass
 
     return jsonify({'success': True})
 
